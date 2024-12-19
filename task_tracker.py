@@ -1,11 +1,15 @@
 import tkinter as tk
 from tkinter import ttk
 import time
-import requests
+import boto3
 from PIL import ImageGrab
+from io import BytesIO
 import os
+from dotenv import load_dotenv
+from aws_uploader import AWSScreenshotUploaderMongoDB
 
 
+# TrackerApp class
 class TrackerApp(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -123,27 +127,8 @@ class TimerMixin:
         )
         stop_button.pack(side="left", padx=5)
 
-        # Stats section
-        stats_frame = tk.Frame(parent, bg="#334155")
-        stats_frame.pack(anchor="w", padx=10, pady=10)
-
-        today_label = tk.Label(
-            stats_frame,
-            text="Today: 00h 00m",
-            font=("Arial", 12),
-            bg="#334155",
-            fg="white",
-        )
-        today_label.pack(anchor="w", pady=5)
-
-        week_label = tk.Label(
-            stats_frame,
-            text="This Week: 00h 00m",
-            font=("Arial", 12),
-            bg="#334155",
-            fg="white",
-        )
-        week_label.pack(anchor="w", pady=5)
+        # Initialize the AWS uploader
+        self.uploader = AWSScreenshotUploaderMongoDB()
 
     def toggle_timer(self):
         if self.timer_running:
@@ -152,20 +137,18 @@ class TimerMixin:
             self.start_timer()
 
     def start_timer(self):
-        """Start the timer, capture screenshot, and trigger API."""
+        """Start the timer, capture screenshot, and upload to S3."""
         self.timer_running = True
         self.start_time = time.time() - self.elapsed_time
-        self.capture_screenshot("start")  # Capture screenshot with 'start' label
-        self.trigger_api("start")         # Trigger start API
+        self.uploader.capture_and_upload_screenshot("start")  # Capture screenshot with 'start' label
         self.update_timer()
 
     def stop_timer(self):
-        """Stop the timer, capture screenshot, and trigger API."""
+        """Stop the timer, capture screenshot, and upload to S3."""
         self.timer_running = False
         self.elapsed_time = time.time() - self.start_time
         self.timer_display.config(text=self.format_time(self.elapsed_time))
-        self.capture_screenshot("stop")  # Capture screenshot with 'stop' label
-        self.trigger_api("stop")         # Trigger stop API
+        self.uploader.capture_and_upload_screenshot("stop")  # Capture screenshot with 'stop' label
 
     def update_timer(self):
         if self.timer_running:
@@ -178,36 +161,6 @@ class TimerMixin:
         minutes, seconds = divmod(seconds, 60)
         hours, minutes = divmod(minutes, 60)
         return f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}"
-
-    def capture_screenshot(self, action):
-        """
-        Capture a screenshot and save it to the current directory.
-        action: 'start' or 'stop' to identify when the screenshot was taken.
-        """
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
-        screenshot_path = os.path.join(os.getcwd(), f"screenshot_{action}_{timestamp}.png")
-        try:
-            screenshot = ImageGrab.grab()
-            screenshot.save(screenshot_path)
-            print(f"Screenshot saved: {screenshot_path}")
-        except Exception as e:
-            print(f"Error capturing screenshot: {e}")
-
-    def trigger_api(self, action):
-        """
-        Send a request to a blank API endpoint.
-        action: 'start' or 'stop' to indicate the API trigger action.
-        """
-        api_url = "http://localhost:8000/start-timer"  # Replace with the actual AWS API endpoint
-        try:
-            response = requests.post(api_url, json={"status": action})
-            if response.status_code == 200:
-                print(f"API '{action}' triggered successfully.")
-            else:
-                print(f"API '{action}' error: {response.status_code}, {response.text}")
-        except Exception as e:
-            print(f"Error triggering API '{action}': {e}")
-
 
 
 class TaskPage(tk.Frame, TimerMixin):
@@ -302,7 +255,7 @@ class SettingsPage(tk.Frame, TimerMixin):
         # Left Section
         tk.Label(
             self.left_frame,
-            text="Settings Page",
+            text="Settings",
             font=("Arial", 16, "bold"),
             bg="#1e293b",
             fg="white",
@@ -315,4 +268,3 @@ class SettingsPage(tk.Frame, TimerMixin):
 if __name__ == "__main__":
     app = TrackerApp()
     app.mainloop()
-
