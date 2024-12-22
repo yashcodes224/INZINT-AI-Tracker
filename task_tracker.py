@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
 import time
+import threading
+import random
 from aws_uploader import AWSScreenshotUploaderMongoDB  # Ensure this is implemented properly
 
 
@@ -84,6 +86,7 @@ class TimerMixin:
         self.elapsed_time = 0
         self.start_time = 0
         self.timer_text = "00:00:00"
+        self.screenshot_thread = None
 
         self.timer_display = tk.Label(
             parent,
@@ -138,6 +141,10 @@ class TimerMixin:
         self.uploader.capture_and_upload_screenshot(action="start")
         self.update_timer()
 
+        # Start a separate thread for random screenshots
+        self.screenshot_thread = threading.Thread(target=self.capture_random_screenshots, daemon=True)
+        self.screenshot_thread.start()
+
     def stop_timer(self):
         """Stop the timer, capture screenshot, and upload to AWS."""
         self.timer_running = False
@@ -150,6 +157,38 @@ class TimerMixin:
             self.elapsed_time = time.time() - self.start_time
             self.timer_display.config(text=self.format_time(self.elapsed_time))
             self.after(100, self.update_timer)
+
+    # def capture_random_screenshots(self):
+    #     """Capture 5 random screenshots within each 10-minute period."""
+    #     while self.timer_running:
+    #         start_time = time.time()
+    #         for _ in range(5):
+    #             if not self.timer_running:
+    #                 return  # Stop if the timer has stopped
+    #             delay = random.uniform(0, 600 / 5)  # Random delay within 10 minutes
+    #             time.sleep(delay)
+    #             self.uploader.capture_and_upload_screenshot(action="random")
+    #         time.sleep(max(0, 600 - (time.time() - start_time)))  # Ensure 10 minutes elapsed
+
+    def capture_random_screenshots(self):
+        """Capture random screenshots within each 10-minute period."""
+        while self.timer_running:
+            # Capture 5 random screenshots in a 10-minute period
+            start_time = time.time()
+            intervals = sorted(random.sample(range(1, 600), 5))  # Random seconds within 10 minutes
+            for interval in intervals:
+                if not self.timer_running:
+                    return  # Stop if the timer has stopped
+                sleep_time = interval - (time.time() - start_time)
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+                if not self.timer_running:
+                    return  # Check again after sleeping
+                self.uploader.capture_and_upload_screenshot(action="random")
+
+            # Ensure the loop doesn't start before the 10-minute window ends
+            elapsed = time.time() - start_time
+            time.sleep(max(0, 600 - elapsed))
 
     @staticmethod
     def format_time(seconds):

@@ -36,9 +36,11 @@ class AWSScreenshotUploaderMongoDB:
     def capture_and_upload_screenshot(self, action):
         """
         Captures a screenshot, uploads it to AWS S3, and stores metadata in MongoDB.
+        The action parameter differentiates between 'start', 'stop', and 'random'.
         """
-        timestamp = time.strftime("%d/%m/%Y %r") 
-        object_key = f"screenshots/{self.user_id}/{time.strftime('%d-%m-%Y')}/screenshot_{action}_{timestamp}.png"
+        timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+        date = time.strftime("%Y-%m-%d")
+        object_key = f"screenshots/{self.user_id}/{date}/screenshot_{action}_{timestamp}.png"
 
         try:
             # Capture the screenshot
@@ -52,32 +54,32 @@ class AWSScreenshotUploaderMongoDB:
             s3_url = f"https://{BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/{object_key}"
 
             # Store metadata in MongoDB
-            self.store_metadata(s3_url)
+            self.store_metadata(date, s3_url)
 
             print(f"Screenshot uploaded and metadata stored: {s3_url}")
         except Exception as e:
             print(f"Error during upload or metadata storage: {e}")
 
-    def store_metadata(self, s3_url):
+    def store_metadata(self, date, s3_url):
         """
-        Stores screenshot metadata in MongoDB.
-        Metadata includes user ID, date, and S3 URL.
+        Stores screenshot metadata in MongoDB by appending S3 URLs to a single document per day.
         """
-        date = time.strftime("%Y-%m-%d")
-        existing_entry = self.collection.find_one({"userID": self.user_id, "date": date})
-
-        if existing_entry:
-            # Append the new URL to the existing document
-            self.collection.update_one(
-                {"userID": self.user_id, "date": date},
-                {"$push": {"s3Urls": s3_url}},
-            )
-        else:
-            # Create a new document for the day
-            self.collection.insert_one(
-                {
-                    "userID": self.user_id,
-                    "date": date,
-                    "s3Urls": [s3_url],
-                }
-            )
+        try:
+            existing_entry = self.collection.find_one({"userID": self.user_id, "date": date})
+            if existing_entry:
+                # Append the new URL to the existing document
+                self.collection.update_one(
+                    {"userID": self.user_id, "date": date},
+                    {"$push": {"s3Urls": s3_url}},
+                )
+            else:
+                # Create a new document for the day
+                self.collection.insert_one(
+                    {
+                        "userID": self.user_id,
+                        "date": date,
+                        "s3Urls": [s3_url],
+                    }
+                )
+        except Exception as e:
+            print(f"Error storing metadata in MongoDB: {e}")
