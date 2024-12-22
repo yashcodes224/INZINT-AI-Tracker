@@ -158,17 +158,6 @@ class TimerMixin:
             self.timer_display.config(text=self.format_time(self.elapsed_time))
             self.after(100, self.update_timer)
 
-    # def capture_random_screenshots(self):
-    #     """Capture 5 random screenshots within each 10-minute period."""
-    #     while self.timer_running:
-    #         start_time = time.time()
-    #         for _ in range(5):
-    #             if not self.timer_running:
-    #                 return  # Stop if the timer has stopped
-    #             delay = random.uniform(0, 600 / 5)  # Random delay within 10 minutes
-    #             time.sleep(delay)
-    #             self.uploader.capture_and_upload_screenshot(action="random")
-    #         time.sleep(max(0, 600 - (time.time() - start_time)))  # Ensure 10 minutes elapsed
 
     def capture_random_screenshots(self):
         """Capture random screenshots within each 10-minute period."""
