@@ -1,32 +1,55 @@
-import tkinter as tk
-from tkinter import ttk
+import customtkinter as ctk
 import time
 import threading
 import random
+from PIL import Image
+import os
+from customtkinter import CTkImage
 from aws_uploader import AWSScreenshotUploaderMongoDB  # Ensure this is implemented properly
 
+# Define theme colors
+PRIMARY_COLOR = "#0f172a"
+SECONDARY_COLOR = "#1e293b"
+HIGHLIGHT_COLOR = "#3b82f6"
+TEXT_COLOR = "white"
+SIDEBAR_BG_COLOR = "#334155"
+BUTTON_BG_COLOR = "#475569"
+BUTTON_HOVER_COLOR = "#3b82f6"
 
-# TrackerApp class
-class TrackerApp(tk.Tk):
+
+class TrackerApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Task Tracker")
         self.geometry("1000x600")
-        self.configure(bg="#1e293b")
+        self.configure(fg_color=PRIMARY_COLOR)
+
+        # Timer state
+        self.timer_running = False
+        self.elapsed_time = 0
+        self.start_time = 0
+        self.screenshot_thread = None
+        self.uploader = AWSScreenshotUploaderMongoDB()
 
         # Sidebar
         self.create_sidebar()
 
         # Main content
-        self.content_frame = tk.Frame(self, bg="#1e293b")
+        self.content_frame = ctk.CTkFrame(self, fg_color=PRIMARY_COLOR)
         self.content_frame.pack(side="left", fill="both", expand=True)
 
         # Load the TaskPage initially
         self.show_tasks()
 
     def create_sidebar(self):
-        sidebar = tk.Frame(self, bg="#334155", width=100)
+        sidebar = ctk.CTkFrame(self, fg_color=SIDEBAR_BG_COLOR, width=150, corner_radius=0)
         sidebar.pack(side="left", fill="y")
+
+        # Profile image with CTkImage
+        image = Image.open("user.png").resize((100, 100))
+        profile_image = CTkImage(light_image=image, size=(100, 100))
+        profile_label = ctk.CTkLabel(sidebar, image=profile_image, text="")
+        profile_label.pack(pady=20)
 
         # Sidebar buttons
         buttons = [
@@ -35,22 +58,33 @@ class TrackerApp(tk.Tk):
             ("Settings", self.show_settings),
         ]
         for btn_name, command in buttons:
-            btn = tk.Button(
+            btn = ctk.CTkButton(
                 sidebar,
                 text=btn_name,
-                bg="#334155",
-                fg="white",
-                activebackground="#475569",
-                relief="flat",
-                font=("Arial", 12),
-                height=2,
-                width=12,
+                fg_color=BUTTON_BG_COLOR,
+                text_color=TEXT_COLOR,
+                hover_color=BUTTON_HOVER_COLOR,
+                font=("Roboto", 14),
                 command=command,
+                corner_radius=10,
+                width=120
             )
             btn.pack(pady=10)
+        # Add Sign Out Button at the Bottom
+        sign_out_button = ctk.CTkButton(
+            sidebar,
+            text="Sign Out",
+            fg_color="#ef4444",
+            text_color=TEXT_COLOR,
+            hover_color="#dc2626",
+            font=("Roboto", 14),
+            command=self.sign_out,
+            corner_radius=10,
+            width=120
+        )
+        sign_out_button.pack(side="bottom", pady=20)
 
     def clear_content(self):
-        """Clear the main content frame."""
         for widget in self.content_frame.winfo_children():
             widget.destroy()
 
@@ -66,228 +100,181 @@ class TrackerApp(tk.Tk):
         self.clear_content()
         SettingsPage(self.content_frame, self).pack(fill="both", expand=True)
 
-
-class TimerMixin:
-    """Mixin class for adding timer functionality to different pages."""
-
-    def create_timer_section(self, parent):
-        """Creates the timer section in the right frame."""
-        header = tk.Label(
-            parent,
-            text="Timer",
-            font=("Arial", 16, "bold"),
-            bg="#334155",
-            fg="white",
-        )
-        header.pack(anchor="w", padx=10, pady=10)
-
-        # Timer display
-        self.timer_running = False
-        self.elapsed_time = 0
-        self.start_time = 0
-        self.timer_text = "00:00:00"
-        self.screenshot_thread = None
-
-        self.timer_display = tk.Label(
-            parent,
-            text=self.timer_text,
-            font=("Arial", 20, "bold"),
-            bg="#334155",
-            fg="#3b82f6",
-        )
-        self.timer_display.pack(anchor="w", padx=10)
-
-        # Timer controls
-        controls_frame = tk.Frame(parent, bg="#334155")
-        controls_frame.pack(anchor="w", padx=10, pady=10)
-
-        play_button = tk.Button(
-            controls_frame,
-            text="▶",
-            font=("Arial", 15),
-            bg="#10b981",
-            fg="white",
-            relief="flat",
-            width=5,
-            command=self.toggle_timer,
-        )
-        play_button.pack(side="left", padx=5)
-
-        stop_button = tk.Button(
-            controls_frame,
-            text="■",
-            font=("Arial", 15),
-            bg="#ef4444",
-            fg="white",
-            relief="flat",
-            width=5,
-            command=self.stop_timer,
-        )
-        stop_button.pack(side="left", padx=5)
-
-        # Initialize the AWS uploader
-        self.uploader = AWSScreenshotUploaderMongoDB()
-
-    def toggle_timer(self):
-        if self.timer_running:
-            self.stop_timer()
-        else:
-            self.start_timer()
-
     def start_timer(self):
-        """Start the timer, capture screenshot, and upload to AWS."""
-        self.timer_running = True
-        self.start_time = time.time() - self.elapsed_time
-        self.uploader.capture_and_upload_screenshot(action="start")
-        self.update_timer()
-
-        # Start a separate thread for random screenshots
-        self.screenshot_thread = threading.Thread(target=self.capture_random_screenshots, daemon=True)
-        self.screenshot_thread.start()
+        if not self.timer_running:
+            self.timer_running = True
+            self.start_time = time.time() - self.elapsed_time
+            self.uploader.capture_and_upload_screenshot(action="start")
+            threading.Thread(target=self.capture_random_screenshots, daemon=True).start()
 
     def stop_timer(self):
-        """Stop the timer, capture screenshot, and upload to AWS."""
-        self.timer_running = False
-        self.elapsed_time = time.time() - self.start_time
-        self.timer_display.config(text=self.format_time(self.elapsed_time))
-        self.uploader.capture_and_upload_screenshot(action="stop")
+        if self.timer_running:
+            self.timer_running = False
+            self.elapsed_time = time.time() - self.start_time
+            self.uploader.capture_and_upload_screenshot(action="stop")
 
     def update_timer(self):
         if self.timer_running:
             self.elapsed_time = time.time() - self.start_time
-            self.timer_display.config(text=self.format_time(self.elapsed_time))
-            self.after(100, self.update_timer)
-
+            return self.format_time(self.elapsed_time)
+        return self.format_time(self.elapsed_time)
 
     def capture_random_screenshots(self):
-        """Capture random screenshots within each 10-minute period."""
         while self.timer_running:
-            # Capture 5 random screenshots in a 10-minute period
-            start_time = time.time()
-            intervals = sorted(random.sample(range(1, 600), 5))  # Random seconds within 10 minutes
+            intervals = sorted(random.sample(range(1, 600), 5))
             for interval in intervals:
+                time.sleep(interval)
                 if not self.timer_running:
-                    return  # Stop if the timer has stopped
-                sleep_time = interval - (time.time() - start_time)
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
-                if not self.timer_running:
-                    return  # Check again after sleeping
+                    return
                 self.uploader.capture_and_upload_screenshot(action="random")
-
-            # Ensure the loop doesn't start before the 10-minute window ends
-            elapsed = time.time() - start_time
-            time.sleep(max(0, 600 - elapsed))
-
+    def sign_out(self):
+        """Handles the sign-out process and returns to final.py."""
+        self.destroy()  # Close the current application window
+        os.system("python final.py")  # Execute the final.py script
     @staticmethod
     def format_time(seconds):
-        """Format time in HH:MM:SS format."""
         minutes, seconds = divmod(seconds, 60)
         hours, minutes = divmod(minutes, 60)
         return f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}"
 
 
-class TaskPage(tk.Frame, TimerMixin):
+class TimerMixin:
+    def create_timer_section(self, parent):
+        header = ctk.CTkLabel(
+            parent,
+            text="Timer",
+            font=("Roboto", 16, "bold"),
+            text_color=TEXT_COLOR,
+        )
+        header.pack(anchor="w", padx=10, pady=10)
+
+        self.timer_display = ctk.CTkLabel(
+            parent,
+            text=self.app.update_timer(),
+            font=("Roboto", 24, "bold"),
+            text_color=HIGHLIGHT_COLOR,
+        )
+        self.timer_display.pack(anchor="w", padx=10)
+
+        controls_frame = ctk.CTkFrame(parent, fg_color=SECONDARY_COLOR)
+        controls_frame.pack(anchor="w", padx=10, pady=10)
+
+        play_button = ctk.CTkButton(
+            controls_frame,
+            text="▶",
+            font=("Roboto", 14),
+            fg_color="#10b981",
+            text_color=TEXT_COLOR,
+            hover_color="#059669",
+            width=50,
+            command=self.app.start_timer,
+        )
+        play_button.pack(side="left", padx=5)
+
+        stop_button = ctk.CTkButton(
+            controls_frame,
+            text="■",
+            font=("Roboto", 14),
+            fg_color="#ef4444",
+            text_color=TEXT_COLOR,
+            hover_color="#dc2626",
+            width=50,
+            command=self.app.stop_timer,
+        )
+        stop_button.pack(side="left", padx=5)
+
+        self.update_timer_display()
+
+    def update_timer_display(self):
+        self.timer_display.configure(text=self.app.update_timer())
+        self.after(1000, self.update_timer_display)
+
+
+class TaskPage(ctk.CTkFrame, TimerMixin):
     def __init__(self, parent, app):
         super().__init__(parent)
-        self.configure(bg="#1e293b")
+        self.configure(fg_color=PRIMARY_COLOR)
         self.app = app
 
-        # Main content split into two sections: left and right
-        self.left_frame = tk.Frame(self, bg="#1e293b")
+        self.left_frame = ctk.CTkFrame(self, fg_color=PRIMARY_COLOR)
         self.left_frame.pack(side="left", fill="both", expand=True, padx=10, pady=10)
 
-        self.right_frame = tk.Frame(self, bg="#334155", width=250)
+        self.right_frame = ctk.CTkFrame(self, fg_color=SECONDARY_COLOR, width=250)
         self.right_frame.pack(side="right", fill="y")
 
-        # Left Section
         self.create_task_section()
-
-        # Right Section (Timer and stats)
         self.create_timer_section(self.right_frame)
 
     def create_task_section(self):
-        header = tk.Label(
+        header = ctk.CTkLabel(
             self.left_frame,
-            text="My Tasks",
-            font=("Arial", 16, "bold"),
-            bg="#1e293b",
-            fg="white",
+            text="Tasks",
+            font=("Roboto", 16, "bold"),
+            text_color=TEXT_COLOR,
         )
         header.pack(anchor="w", pady=10)
 
-        # Task list
         tasks = [("ICRM", "desktop-app"), ("ICRM", "testing")]
         for project, task in tasks:
-            task_frame = tk.Frame(self.left_frame, bg="#334155", padx=10, pady=5)
-            task_frame.pack(fill="x", pady=5)
+            task_frame = ctk.CTkFrame(self.left_frame, fg_color=SIDEBAR_BG_COLOR, corner_radius=10)
+            task_frame.pack(fill="x", pady=5, padx=10)
 
-            project_label = tk.Label(
-                task_frame, text=project, font=("Arial", 12), bg="#334155", fg="white"
+            project_label = ctk.CTkLabel(
+                task_frame, text=project, font=("Roboto", 14), text_color=TEXT_COLOR
             )
             project_label.pack(side="left", padx=5)
 
-            task_label = tk.Label(
+            task_label = ctk.CTkLabel(
                 task_frame,
                 text=task,
-                font=("Arial", 10),
-                bg="#334155",
-                fg="#cbd5e1",
+                font=("Roboto", 16),
+                text_color="#cbd5e1",
             )
             task_label.pack(side="left", padx=10)
 
 
-class ProfilePage(tk.Frame, TimerMixin):
+class ProfilePage(ctk.CTkFrame, TimerMixin):
     def __init__(self, parent, app):
         super().__init__(parent)
-        self.configure(bg="#1e293b")
+        self.configure(fg_color=PRIMARY_COLOR)
         self.app = app
 
-        # Main content split into two sections: left and right
-        self.left_frame = tk.Frame(self, bg="#1e293b")
+        self.left_frame = ctk.CTkFrame(self, fg_color=PRIMARY_COLOR)
         self.left_frame.pack(side="left", fill="both", expand=True, padx=10, pady=10)
 
-        self.right_frame = tk.Frame(self, bg="#334155", width=250)
+        self.right_frame = ctk.CTkFrame(self, fg_color=SECONDARY_COLOR, width=250)
         self.right_frame.pack(side="right", fill="y")
 
-        # Left Section
-        tk.Label(
+        ctk.CTkLabel(
             self.left_frame,
-            text="Profile Information",
-            font=("Arial", 16, "bold"),
-            bg="#1e293b",
-            fg="white",
+            text="User's Profile",
+            font=("Roboto", 16, "bold"),
+            text_color=TEXT_COLOR,
         ).pack(anchor="w", pady=10)
 
-        # Right Section (Timer and stats)
         self.create_timer_section(self.right_frame)
 
 
-class SettingsPage(tk.Frame, TimerMixin):
+class SettingsPage(ctk.CTkFrame, TimerMixin):
     def __init__(self, parent, app):
         super().__init__(parent)
-        self.configure(bg="#1e293b")
+        self.configure(fg_color=PRIMARY_COLOR)
         self.app = app
 
-        # Main content split into two sections: left and right
-        self.left_frame = tk.Frame(self, bg="#1e293b")
+        self.left_frame = ctk.CTkFrame(self, fg_color=PRIMARY_COLOR)
         self.left_frame.pack(side="left", fill="both", expand=True, padx=10, pady=10)
 
-        self.right_frame = tk.Frame(self, bg="#334155", width=250)
+        self.right_frame = ctk.CTkFrame(self, fg_color=SECONDARY_COLOR, width=250)
         self.right_frame.pack(side="right", fill="y")
 
-        # Left Section
-        tk.Label(
+        ctk.CTkLabel(
             self.left_frame,
             text="Settings",
-            font=("Arial", 16, "bold"),
-            bg="#1e293b",
-            fg="white",
+            font=("Roboto", 16, "bold"),
+            text_color=TEXT_COLOR,
         ).pack(anchor="w", pady=10)
 
-        # Right Section (Timer and stats)
         self.create_timer_section(self.right_frame)
-
 
 if __name__ == "__main__":
     app = TrackerApp()
