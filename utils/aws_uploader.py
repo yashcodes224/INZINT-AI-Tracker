@@ -31,7 +31,7 @@ class AWSScreenshotUploaderMongoDB:
         self.collection = self.db["screenshots"]
 
         # Dummy user ID
-        self.user_id = "real-test-user"
+        self.user_id = "adarsh"
 
     def capture_and_upload_screenshot(self, action):
         """
