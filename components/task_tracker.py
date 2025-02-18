@@ -1,45 +1,81 @@
 import customtkinter as ctk
-from PIL import Image
-from customtkinter import CTkImage
 from components.settings.settings import SettingsSection
 from components.profile.profile import ProfileUI
 from components.tasks.tasks import TasksSection
-from components.timer import TimerMixin
+from components.timer.timer import TimerMixin
 from components.sidebar.sidebar import Sidebar
-from utils.styles import PRIMARY_COLOR, BUTTON_BG_COLOR, BUTTON_HOVER_COLOR, TEXT_COLOR
-import json
-import os
-
+from components.timer.timer_style import LIGHT_THEME, DARK_THEME 
+import os 
 
 class TrackerApp(ctk.CTk, TimerMixin):
     def __init__(self, token):
         super().__init__()
-        TimerMixin.__init__(self, self)  # Initialize TimerMixin once
 
         self.token = token
         self.title("iTrack")
+        icon_path = os.path.join(os.path.dirname(__file__), "..", "assets", "logo2.ico")
+        self.iconbitmap(icon_path)
         self.geometry("770x560")
         self.resizable(False, False)
         self.task_data = []
 
+        # ✅ Default to Light Theme on Startup
+        self.current_theme = "Light"
+        self.theme = LIGHT_THEME  
+
+        # Sidebar
         self.sidebar = Sidebar(self, self)
 
-        # Left Section (Tasks, Profile, Settings) - 50% Width
-        self.left_frame = ctk.CTkFrame(self, fg_color=PRIMARY_COLOR, corner_radius=0)
+        # Left Section (Tasks, Profile, Settings)
+        self.left_frame = ctk.CTkFrame(self, fg_color=self.theme["background"], corner_radius=0)
         self.left_frame.pack(side="left", fill="both", expand=True)
         self.left_frame.pack_propagate(False)
 
-        # Right Section (Timer) - 50% Width
-        self.right_frame = ctk.CTkFrame(self, fg_color="#f6f9fb", corner_radius=0)
+        # Right Section (Timer)
+        self.right_frame = ctk.CTkFrame(self, fg_color=self.theme["background"], corner_radius=0)
         self.right_frame.pack(side="right", fill="both", expand=True)
         self.right_frame.pack_propagate(False)
+
+        # ✅ Initialize TimerMixin AFTER right_frame is created
+        TimerMixin.__init__(self, self)
 
         # Load Initial Page (Tasks)
         self.show_tasks()
 
-        # Create Timer UI (This stays unchanged)
+        # ✅ Now it's safe to create the Timer UI
         self.create_timer_section(self.right_frame)
 
+    def set_theme(self, theme):
+        """Set and apply theme instantly across the app from settings.py."""
+        if theme in ["Light", "Dark"]:
+            self.current_theme = theme
+            self.theme = LIGHT_THEME if theme == "Light" else DARK_THEME
+            self.apply_theme()
+
+    def apply_theme(self):
+        """Apply the selected theme globally without affecting timer functionality."""
+        self.configure(fg_color=self.theme["background"])
+
+        if hasattr(self, "left_frame") and hasattr(self, "right_frame"):
+            self.left_frame.configure(fg_color=self.theme["background"])
+            self.right_frame.configure(fg_color=self.theme["background"])
+
+        # ✅ Update Sidebar (if applicable)
+        if hasattr(self.sidebar, "apply_theme"):
+            self.sidebar.apply_theme()
+
+        # ✅ Update the currently displayed section (Tasks, Profile, or Settings)
+        if self.left_frame.winfo_children():
+            current_page = self.left_frame.winfo_children()[0]
+            if isinstance(current_page, TasksSection):
+                self.show_tasks()
+            elif isinstance(current_page, ProfileUI):
+                self.show_profile()
+            elif isinstance(current_page, SettingsSection):
+                self.show_settings()
+
+        # ✅ Apply theme to the timer UI using TimerMixin
+        self.update_timer_theme()
 
     def clear_left_frame(self):
         """Clear only the left section while keeping the Timer UI on the right unchanged."""
@@ -59,15 +95,13 @@ class TrackerApp(ctk.CTk, TimerMixin):
     def show_settings(self):
         """Switch to Settings UI while keeping the Timer UI fixed."""
         self.clear_left_frame()
-        SettingsSection(self.left_frame, self).pack(fill="both", expand=True)
+        settings_page = SettingsSection(self.left_frame, self)
+        settings_page.pack(fill="both", expand=True)
 
     def sign_out(self):
         """Close the application."""
         self.destroy()
 
-
 if __name__ == "__main__":
     app = TrackerApp(token="your_token_here")
-    app.iconbitmap('assets/logo2.ico')
     app.mainloop()
-

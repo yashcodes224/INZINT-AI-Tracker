@@ -1,6 +1,7 @@
 import customtkinter as ctk
 from components.tasks.task_form import TaskForm
-from components.timer import TimerMixin
+from components.timer.timer import TimerMixin
+from components.tasks.task_style import LIGHT_THEME, DARK_THEME  # Import both themes
 
 class TasksSection(ctk.CTkFrame, TimerMixin):
     def __init__(self, parent, app):
@@ -9,15 +10,20 @@ class TasksSection(ctk.CTkFrame, TimerMixin):
 
         self.app = app  # Store app reference
 
-        # Set background to white
-        self.configure(fg_color="white")
+        # Apply the correct theme dynamically
+        self.apply_theme()
 
-        # Left (tasks) and Right (timer) sections
-        self.left_frame = ctk.CTkFrame(self, fg_color="#f2f4f7", corner_radius=0)
+        # Left (tasks) section
+        self.left_frame = ctk.CTkFrame(self, fg_color=self.theme["left_frame"], corner_radius=0)
         self.left_frame.pack(side="left", fill="both", expand=True)
         self.left_frame.pack_propagate(False)
 
         self.show_tasks_view()
+
+    def apply_theme(self):
+        """Apply the selected theme (Light or Dark)."""
+        self.theme = LIGHT_THEME if self.app.current_theme == "Light" else DARK_THEME
+        self.configure(fg_color=self.theme["background"])
 
     def show_tasks_view(self):
         """Show the tasks list in the left section."""
@@ -31,15 +37,20 @@ class TasksSection(ctk.CTkFrame, TimerMixin):
         header_frame = ctk.CTkFrame(self.left_frame, fg_color="transparent")
         header_frame.pack(fill="x", padx=15, pady=(15, 5))
 
-        header = ctk.CTkLabel(header_frame, text="My Tasks", font=("Roboto", 24, "bold"), text_color="black")
+        header = ctk.CTkLabel(
+            header_frame,
+            text="My Tasks",
+            font=("Roboto", 24, "bold"),
+            text_color=self.theme["header_text"]
+        )
         header.pack(side="left")
 
         create_task_btn = ctk.CTkButton(
             header_frame,
             text="+ Create Task",
-            fg_color="#f43f5e",
-            text_color="white",
-            hover_color="#e11d48",
+            fg_color=self.theme["create_task_btn"]["fg_color"],
+            text_color=self.theme["create_task_btn"]["text_color"],
+            hover_color=self.theme["create_task_btn"]["hover_color"],
             font=("Roboto", 14, "bold"),
             corner_radius=8,
             command=self.show_task_form
@@ -47,15 +58,19 @@ class TasksSection(ctk.CTkFrame, TimerMixin):
         create_task_btn.pack(side="right", padx=10)
 
         # Task Tabs
-        tab_view = ctk.CTkTabview(self.left_frame, fg_color="white", corner_radius=12)
+        tab_view = ctk.CTkTabview(
+            self.left_frame,
+            fg_color=self.theme["tab_view"]["fg_color"],
+            corner_radius=12
+        )
         tab_view.pack(fill="both", expand=True, padx=5, pady=5)
 
         # Styling tabs
         tab_view._segmented_button.configure(
-            fg_color="#B91C1C",
-            selected_color="#f43f5e",
-            unselected_color="#FCA5A5",
-            text_color="white"
+            fg_color=self.theme["tab_view"]["border_color"],
+            selected_color=self.theme["tab_view"]["selected_color"],
+            unselected_color=self.theme["tab_view"]["unselected_color"],
+            text_color=self.theme["tab_view"]["text_color"]
         )
 
         self.todo_tab = tab_view.add("To-Do")
@@ -69,66 +84,75 @@ class TasksSection(ctk.CTkFrame, TimerMixin):
             for widget in tab.winfo_children():
                 widget.destroy()
 
-        # Start rendering tasks **immediately below the tab** (no extra spacing)
         for task in self.app.task_data:
             parent_tab = self.todo_tab if not task.get("completed", False) else self.completed_tab
 
             task_frame = ctk.CTkFrame(
                 parent_tab,
-                fg_color="#FDE2E4",  # Task background highlighted
+                fg_color=self.theme["task_card"]["bg_color"],
                 corner_radius=12,
-                border_width=1,  # Thin border around task
-                border_color="#B91C1C"  # Darker red border
+                border_width=1,
+                border_color=self.theme["task_card"]["border_color"]
             )
             task_frame.pack(fill="x", pady=3, padx=8)
 
-            # Task Layout (Compact & Balanced)
+            # ✅ Task Container (Expands Properly)
             task_container = ctk.CTkFrame(task_frame, fg_color="transparent")
-            task_container.pack(fill="both", expand=True, padx=8, pady=5)
+            task_container.pack(fill="x", expand=True, padx=5, pady=5)
+            task_container.grid_columnconfigure(1, weight=1)  # ✅ Allow text section to expand
+            task_container.grid_columnconfigure(2, weight=0)  # ✅ Fix alignment of time on the right
 
-            # Radio button for task completion
+            # ✅ Adjusted Radio Button (Reduced Space)
             radio_var = ctk.StringVar(value="completed" if task["completed"] else "pending")
             task_radio = ctk.CTkRadioButton(
                 task_container,
                 text="",
                 variable=radio_var,
                 value="completed",
-                fg_color="#f43f5e",
-                command=lambda t=task: self.toggle_task_completion(t)
+                fg_color=self.theme["radio_button"]["fg_color"],
+                command=lambda t=task: self.toggle_task_completion(t),
+                width=5, height=5  # ✅ Make button smaller
             )
-            task_radio.pack(side="left", padx=5, pady=2)
+            task_radio.grid(row=0, column=0, padx=(8, 2), pady=2, sticky="w")  # ✅ Reduced padding
+
             if task["completed"]:
                 task_radio.select()
 
-            # Task Info Section (Reduced Space Between Elements)
+            # ✅ Task Info Section (Expands Fully)
             task_info = ctk.CTkFrame(task_container, fg_color="transparent")
-            task_info.pack(side="left", fill="x", expand=True, padx=8)
+            task_info.grid(row=0, column=1, sticky="ew", padx=(2, 5))  # ✅ Reduced left padding
 
-            task_name = ctk.CTkLabel(task_info, text=task["name"], font=("Roboto", 16, "bold"), text_color="#1E293B")
+            # ✅ Task Name (No Extra Space)
+            task_name = ctk.CTkLabel(
+                task_info,
+                text=task["name"],
+                font=("Roboto", 16, "bold"),
+                text_color=self.theme["task_card"]["text_color"],
+                anchor="w"
+            )
             task_name.pack(anchor="w", pady=1)
 
-            project_name = ctk.CTkLabel(task_info, text=task["project"], font=("Roboto", 12), text_color="#64748B")
+            # ✅ Project Name (Now Fully Visible)
+            project_name = ctk.CTkLabel(
+                task_info,
+                text=task["project"],
+                font=("Roboto", 12),
+                text_color=self.theme["task_card"]["subtext_color"],
+                wraplength=200,  # ✅ Prevent text from cutting off
+                anchor="w",
+                justify="left"
+            )
             project_name.pack(anchor="w", pady=1)
 
-            # Timer & Actions Section
-            action_frame = ctk.CTkFrame(task_container, fg_color="transparent")
-            action_frame.pack(side="right", padx=5, pady=2)
-
-            time_label = ctk.CTkLabel(action_frame, text=task["time"], font=("Roboto", 12), text_color="#475569")
-            time_label.pack(side="left", padx=5)
-
-            # Start/Stop Timer Button
-            action_button = ctk.CTkButton(
-                action_frame,
-                text="▶ Start" if not task["running"] else "⏹ Stop",
-                width=60,
+            # ✅ Task Time (Right-Aligned)
+            task_time = ctk.CTkLabel(
+                task_container,
+                text=task["time"],
                 font=("Roboto", 12, "bold"),
-                fg_color="#22C55E" if not task["running"] else "#DC2626",
-                hover_color="#16A34A" if not task["running"] else "#B91C1C",
-                corner_radius=8,
-                command=lambda t=task: self.toggle_task_timer(t)
+                text_color=self.theme["task_card"]["time_color"],
+                anchor="e"  # ✅ Align to the right
             )
-            action_button.pack(side="left")
+            task_time.grid(row=0, column=2, padx=(5, 8), sticky="e")  # ✅ Proper alignment on the right
 
     def toggle_task_completion(self, task):
         """Mark a task as completed or incomplete."""
