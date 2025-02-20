@@ -221,14 +221,17 @@ class TimerMixin:
             self.start_timer()
 
     def start_timer(self):
-        """Start the timer and change button appearance."""
+        """Start the timer and capture random screenshots in a separate thread."""
         if not self.timer_running:
             self.timer_running = True
             self.start_time = time.time() - self.elapsed_time
             self.uploader.capture_and_upload_screenshot(action="start")
 
             self.play_button.configure(text="■", fg_color=self.theme["stop_button"]["fg_color"], 
-                                       hover_color=self.theme["stop_button"]["hover_color"])
+                                    hover_color=self.theme["stop_button"]["hover_color"])
+
+            # ✅ Start random screenshot capture in a separate thread
+            threading.Thread(target=self.capture_random_screenshots, daemon=True).start()
 
     def stop_timer(self):
         """Stop the timer and revert button appearance."""
@@ -237,8 +240,11 @@ class TimerMixin:
             self.elapsed_time = time.time() - self.start_time
             self.uploader.capture_and_upload_screenshot(action="stop")
 
-            self.play_button.configure(text="▶", fg_color=self.theme["play_button"]["fg_color"], 
-                                       hover_color=self.theme["play_button"]["hover_color"])
+            self.play_button.configure(
+                text="▶", 
+                fg_color=self.theme["play_button"]["fg_color"], 
+                hover_color=self.theme["play_button"]["hover_color"]
+            )
 
     def update_timer(self):
         """Update the timer's elapsed time."""
@@ -256,14 +262,25 @@ class TimerMixin:
             self.timer_display.after(1000, self.update_timer_display)
 
     def capture_random_screenshots(self):
-        """Capture random screenshots while the timer is running."""
-        while self.timer_running:
-            intervals = sorted(random.sample(range(1, 600), 5))
-            for interval in intervals:
-                time.sleep(interval)
-                if not self.timer_running:
-                    return
-                self.uploader.capture_and_upload_screenshot(action="random")
+        """Capture 5 random screenshots while the timer is running."""
+        if not self.timer_running:
+            return  # Exit if timer is stopped before it starts
+
+        intervals = sorted(random.sample(range(1, 600), 5))  # ✅ Generate 5 random times within 10 minutes
+
+        for interval in intervals:
+            if not self.timer_running:
+                break  # Stop immediately if timer is off
+
+            print(f"Waiting for {interval} seconds to capture a screenshot...")  # Debugging
+            time.sleep(interval)  # ✅ Wait until this interval
+
+            if not self.timer_running:
+                break  # Stop immediately if timer is off
+
+            print(f"Capturing random screenshot at {interval} seconds")  # Debugging
+            self.uploader.capture_and_upload_screenshot(action="random")
+
 
     @staticmethod
     def format_time(seconds):
