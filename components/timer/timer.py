@@ -7,13 +7,14 @@ from components.timer.timer_style import LIGHT_THEME, DARK_THEME
 import requests
 
 class TimerMixin:
-    def __init__(self, app):
+    def __init__(self, app, user_name):
         self.timer_running = False
         self.start_time = 0
         self.elapsed_time = 0
-        self.uploader = AWSScreenshotUploaderMongoDB()
+        self.uploader = AWSScreenshotUploaderMongoDB(user_name=user_name)
         self.app = app
         self.playing = False
+        self.user_name = user_name
 
         # Apply theme
         self.apply_theme()
@@ -272,7 +273,7 @@ class TimerMixin:
             if not self.timer_running:
                 break  # Stop immediately if timer is off
 
-            print(f"Waiting for {interval} seconds to capture a screenshot...")  # Debugging
+            #print(f"Waiting for {interval} seconds to capture a screenshot...")  # Debugging
             time.sleep(interval)  # ✅ Wait until this interval
 
             if not self.timer_running:

@@ -6,7 +6,7 @@ from components.tasks.task_style import LIGHT_THEME, DARK_THEME  # Import both t
 class TasksSection(ctk.CTkFrame, TimerMixin):
     def __init__(self, parent, app):
         ctk.CTkFrame.__init__(self, parent)
-        TimerMixin.__init__(self, app)
+        TimerMixin.__init__(self, app, user_name=app.user_name)
 
         self.app = app  # Store app reference
 

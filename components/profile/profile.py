@@ -6,7 +6,7 @@ from components.profile.profile_style import LIGHT_THEME, DARK_THEME  # Import s
 class ProfileUI(ctk.CTkFrame, TimerMixin):
     def __init__(self, parent, app):
         super().__init__(parent)
-        TimerMixin.__init__(self, app)  # Initialize TimerMixin with the app instance
+        TimerMixin.__init__(self, app, user_name=app.user_name)  # Initialize TimerMixin with the app instance
 
         self.app = app  # Store app reference
 

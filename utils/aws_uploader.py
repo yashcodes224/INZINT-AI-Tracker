@@ -17,21 +17,25 @@ MONGO_URI = os.getenv("MONGO_URI")  # MongoDB URI
 
 
 class AWSScreenshotUploaderMongoDB:
-    def __init__(self):
-        # Initialize AWS S3 client
+    def __init__(self, user_name):
+        """
+        Initializes the AWS S3 client, MongoDB client, and stores the logged-in user dynamically.
+        :param user_name: The logged-in user's name (passed dynamically).
+        """
         self.s3_client = boto3.client(
             "s3",
             aws_access_key_id=AWS_ACCESS_KEY_ID,
             aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
             region_name=AWS_REGION,
         )
+
         # Initialize MongoDB client
         self.mongo_client = MongoClient(MONGO_URI)
         self.db = self.mongo_client["screenshot_metadata"]
         self.collection = self.db["screenshots"]
 
-        # Dummy user ID
-        self.user_id = "adarsh"
+        # Store logged-in user
+        self.user_name = user_name or "unknown_user"
 
     def capture_and_upload_screenshot(self, action):
         """
@@ -40,7 +44,7 @@ class AWSScreenshotUploaderMongoDB:
         """
         timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
         date = time.strftime("%Y-%m-%d")
-        object_key = f"screenshots/{self.user_id}/{date}/screenshot_{action}_{timestamp}.png"
+        object_key = f"screenshots/{self.user_name}/{date}/screenshot_{action}_{timestamp}.png"
 
         try:
             # Capture the screenshot
@@ -65,18 +69,18 @@ class AWSScreenshotUploaderMongoDB:
         Stores screenshot metadata in MongoDB by appending S3 URLs to a single document per day.
         """
         try:
-            existing_entry = self.collection.find_one({"userID": self.user_id, "date": date})
+            existing_entry = self.collection.find_one({"userName": self.user_name, "date": date})
             if existing_entry:
                 # Append the new URL to the existing document
                 self.collection.update_one(
-                    {"userID": self.user_id, "date": date},
+                    {"userName": self.user_name, "date": date},
                     {"$push": {"s3Urls": s3_url}},
                 )
             else:
                 # Create a new document for the day
                 self.collection.insert_one(
                     {
-                        "userID": self.user_id,
+                        "userName": self.user_name,
                         "date": date,
                         "s3Urls": [s3_url],
                     }

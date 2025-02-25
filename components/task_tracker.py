@@ -8,10 +8,12 @@ from components.timer.timer_style import LIGHT_THEME, DARK_THEME
 import os 
 
 class TrackerApp(ctk.CTk, TimerMixin):
-    def __init__(self, token):
+    def __init__(self, token, role, user_name):
         super().__init__()
 
         self.token = token
+        self.user_name = user_name  # ✅ Store user_name first
+        self.role = role
         self.title("iTrack")
         icon_path = os.path.join(os.path.dirname(__file__), "..", "assets", "logo2.ico")
         self.iconbitmap(icon_path)
@@ -37,7 +39,7 @@ class TrackerApp(ctk.CTk, TimerMixin):
         self.right_frame.pack_propagate(False)
 
         # ✅ Initialize TimerMixin AFTER right_frame is created
-        TimerMixin.__init__(self, self)
+        TimerMixin.__init__(self, self, user_name=self.user_name)
 
         # Load Initial Page (Tasks)
         self.show_tasks()
@@ -103,5 +105,5 @@ class TrackerApp(ctk.CTk, TimerMixin):
         self.destroy()
 
 if __name__ == "__main__":
-    app = TrackerApp(token="your_token_here")
+    app = TrackerApp(token="your_token_here", role="your_role_here", user_name="your_name_here")
     app.mainloop()
