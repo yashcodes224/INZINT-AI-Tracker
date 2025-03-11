@@ -2,13 +2,15 @@ import customtkinter as ctk
 from PIL import Image
 from customtkinter import CTkImage
 from components.sidebar.sidebar_style import LIGHT_THEME, DARK_THEME  # Import styles
+from utils.icon import resource_path  # ✅ Import resource_path
+
 
 class Sidebar(ctk.CTkFrame):
     def __init__(self, parent, app):
         self.app = app  # Reference to main application
         self.theme = LIGHT_THEME if app.current_theme == "Light" else DARK_THEME  # Apply theme
 
-        super().__init__(parent, fg_color=self.theme["bg_color"], width=self.theme["sidebar_width"], corner_radius=0)  
+        super().__init__(parent, fg_color=self.theme["bg_color"], width=self.theme["sidebar_width"], corner_radius=0)
 
         self.pack(side="left", fill="y")
         self.pack_propagate(False)
@@ -16,8 +18,10 @@ class Sidebar(ctk.CTkFrame):
 
     def create_widgets(self):
         """Create the sidebar UI elements with .ico icons."""
-        # Profile Image
-        profile_image = CTkImage(light_image=Image.open("assets/logo3.ico").resize((45, 45)), size=(45, 45))
+        # ✅ Use resource_path() for icon paths
+        profile_image = CTkImage(
+            light_image=Image.open(resource_path("assets/logo3.ico")).resize((45, 45)), size=(45, 45)
+        )
         profile_label = ctk.CTkLabel(self, image=profile_image, text="", text_color=self.theme["text_color"])
         profile_label.pack(pady=12)
 
@@ -29,7 +33,7 @@ class Sidebar(ctk.CTkFrame):
         ]
 
         for icon_key, btn_name, command in buttons:
-            icon_path = self.theme["icons"][icon_key]  # Get correct icon based on theme
+            icon_path = resource_path(self.theme["icons"][icon_key])  # ✅ Get correct icon path
             icon_image = CTkImage(light_image=Image.open(icon_path), size=(30, 30))  # Bigger icon
 
             btn = ctk.CTkButton(
@@ -49,7 +53,9 @@ class Sidebar(ctk.CTkFrame):
             btn.pack(pady=15)
 
         # Sign Out Button (Same Icon for Both Themes)
-        logout_icon = CTkImage(light_image=Image.open(self.theme["icons"]["logout"]), size=(30, 30))
+        logout_icon_path = resource_path(self.theme["icons"]["logout"])  # ✅ Ensure logout icon is handled
+        logout_icon = CTkImage(light_image=Image.open(logout_icon_path), size=(30, 30))
+
         sign_out_button = ctk.CTkButton(
             self,
             image=logout_icon,
@@ -70,7 +76,7 @@ class Sidebar(ctk.CTkFrame):
         """Apply theme dynamically when changed."""
         self.theme = LIGHT_THEME if self.app.current_theme == "Light" else DARK_THEME
         self.configure(fg_color=self.theme["bg_color"], width=self.theme["sidebar_width"])
-        
+
         # Update all buttons dynamically
         for widget in self.winfo_children():
             if isinstance(widget, ctk.CTkButton):

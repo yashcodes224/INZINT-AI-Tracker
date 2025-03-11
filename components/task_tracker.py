@@ -6,6 +6,7 @@ from components.timer.timer import TimerMixin
 from components.sidebar.sidebar import Sidebar
 from components.timer.timer_style import LIGHT_THEME, DARK_THEME 
 import os 
+from utils.icon import resource_path
 
 class TrackerApp(ctk.CTk, TimerMixin):
     def __init__(self, token, role, user_name):
@@ -15,8 +16,7 @@ class TrackerApp(ctk.CTk, TimerMixin):
         self.user_name = user_name  # ✅ Store user_name first
         self.role = role
         self.title("iTrack")
-        icon_path = os.path.join(os.path.dirname(__file__), "..", "assets", "logo2.ico")
-        self.iconbitmap(icon_path)
+        self.iconbitmap(resource_path("assets/logo2.ico"))
         self.geometry("770x560")
         self.resizable(False, False)
         self.task_data = []
@@ -75,7 +75,6 @@ class TrackerApp(ctk.CTk, TimerMixin):
                 self.show_profile()
             elif isinstance(current_page, SettingsSection):
                 self.show_settings()
-
         # ✅ Apply theme to the timer UI using TimerMixin
         self.update_timer_theme()
 
@@ -87,12 +86,12 @@ class TrackerApp(ctk.CTk, TimerMixin):
     def show_profile(self):
         """Switch to Profile UI while keeping the Timer UI fixed."""
         self.clear_left_frame()
-        ProfileUI(self.left_frame, self).pack(fill="both", expand=True)
+        ProfileUI(self.left_frame, self, self.token).pack(fill="both", expand=True)
 
     def show_tasks(self):
         """Switch to Tasks UI while keeping the Timer UI fixed."""
         self.clear_left_frame()
-        TasksSection(self.left_frame, self).pack(fill="both", expand=True)
+        TasksSection(self.left_frame, self, self.token).pack(fill="both", expand=True)
 
     def show_settings(self):
         """Switch to Settings UI while keeping the Timer UI fixed."""

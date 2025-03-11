@@ -4,10 +4,15 @@ import threading
 from CTkMessagebox import CTkMessagebox
 from components.tasks.task_form_style import LIGHT_THEME, DARK_THEME  # Import styles
 
+
+# API Endpoint
+API_PROFILE_URL = "https://o9bc4pbt8b.execute-api.ap-south-1.amazonaws.com/development/profile"
+
 class TaskForm(ctk.CTkFrame):
-    def __init__(self, parent, app, on_task_created):
+    def __init__(self, parent, app, on_task_created, token):
         super().__init__(parent)
         self.app = app
+        self.token = token
         self.on_task_created = on_task_created  
 
         self.apply_theme()
@@ -57,7 +62,7 @@ class TaskForm(ctk.CTkFrame):
         # Default Placeholder for Dropdown
         self.project_option_menu = ctk.CTkOptionMenu(
             self,
-            values=["No Projects Assigned..."],  # Default placeholder
+            values=["Fetching projects..."],  # Default placeholder
             width=self.theme["dropdown"]["width"],
             height=self.theme["dropdown"]["height"],
             fg_color=self.theme["dropdown"]["fg_color"],
@@ -70,8 +75,8 @@ class TaskForm(ctk.CTkFrame):
         )
         self.project_option_menu.pack(anchor="w", padx=20, pady=(5, 20))
 
-        # Fetch projects asynchronously without blocking UI
-        threading.Thread(target=self.fetch_projects, daemon=True).start()
+        # Fetch projects asynchronously using profile API
+        threading.Thread(target=self.fetch_profile, daemon=True).start()
 
         # Button Frame
         button_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -114,31 +119,73 @@ class TaskForm(ctk.CTkFrame):
         self.theme = LIGHT_THEME if self.app.current_theme == "Light" else DARK_THEME
         self.configure(fg_color=self.theme["background"])
 
-    def fetch_projects(self):
-        """Fetch project names from API and update dropdown."""
-        try:
-            response = requests.get("http://localhost:8080/api/project/projects")  
-            if response.status_code == 200:
-                projects = response.json()  
-                project_names = [project["name"] for project in projects]  
+    def fetch_profile(self):
+        """Fetch user profile to get project IDs and then fetch projects by ID."""
+        headers = {
+            "Authorization": f"Bearer {self.app.token}",
+            "Content-Type": "application/json"
+        }
 
-                # Update dropdown dynamically
-                if project_names:
-                    self.project_option_menu.configure(values=project_names)
-                    self.project_option_menu.set(project_names[0])
+        try:
+            response = requests.get(API_PROFILE_URL, headers=headers)
+            print(f"Profile API Response: {response.status_code} - {response.text}")  # Debugging
+
+            if response.status_code == 200:
+                profile_data = response.json()
+
+                if not isinstance(profile_data, dict):
+                    print("Unexpected API response format:", profile_data)
+                    return
+
+                project_ids = profile_data.get("projects", [])  # Directly get list of project IDs
+
+                if project_ids:
+                    self.fetch_projects_by_id(project_ids)  # Fetch project details
                 else:
                     self.project_option_menu.configure(values=["No Projects Assigned..."])
                     self.project_option_menu.set("No Projects Assigned...")
             else:
-                self.project_option_menu.configure(values=["No Projects Assigned..."])
-                self.project_option_menu.set("No Projects Assigned...")
+                print(f"Error fetching profile: {response.status_code} - {response.text}")
+
         except requests.exceptions.RequestException as e:
-            print("Error fetching projects:", e)
+            print("Error fetching profile:", e)
+
+
+    def fetch_projects_by_id(self, project_ids):
+        """Fetch project details using project IDs."""
+        headers = {
+            "Authorization": f"Bearer {self.app.token}",
+            "Content-Type": "application/json"
+        }
+
+        project_names = []
+        for project_id in project_ids:
+            try:
+                project_url = f"https://o9bc4pbt8b.execute-api.ap-south-1.amazonaws.com/development/projects/{project_id}"
+                response = requests.get(project_url, headers=headers)
+
+                print(f"Project API Response ({project_id}): {response.status_code} - {response.text}")  # Debugging
+
+                if response.status_code == 200:
+                    project_data = response.json()
+                    project_names.append(project_data.get("name", "Unknown Project"))
+                else:
+                    print(f"Error fetching project {project_id}: {response.status_code} - {response.text}")
+
+            except requests.exceptions.RequestException as e:
+                print(f"Error fetching project {project_id}:", e)
+
+        # Update dropdown with fetched project names
+        if project_names:
+            self.project_option_menu.configure(values=project_names)
+            self.project_option_menu.set(project_names[0])
+        else:
             self.project_option_menu.configure(values=["No Projects Assigned..."])
             self.project_option_menu.set("No Projects Assigned...")
 
+
     def highlight_entry(self, event):
-        """Change border color to red when the entry box is clicked."""
+        """Change border color when entry box is clicked."""
         self.task_name_entry.configure(border_color=self.theme["entry"]["focus_border_color"])
 
     def reset_entry_border(self, event):
@@ -166,4 +213,4 @@ class TaskForm(ctk.CTkFrame):
             "completed": False
         })
 
-        self.on_task_created()
+        self.on_task_created()  

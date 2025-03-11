@@ -192,17 +192,49 @@ class TimerMixin:
     # Fetch projects asynchronously
         threading.Thread(target=self.fetch_projects, daemon=True).start()
 
+    # def fetch_projects(self):
+    #     """Fetch project names from API and update dropdown safely."""
+    #     try:
+    #         response = requests.get("https://o9bc4pbt8b.execute-api.ap-south-1.amazonaws.com/development/projects")  
+    #         if response.status_code == 200:
+    #             projects = response.json()
+    #             project_names = list(set(project["name"] for project in projects))  # ✅ Remove duplicates
+
+    #             # ✅ Use `after()` to update the UI safely
+    #             self.app.after(0, self.update_project_dropdown, project_names)
+    #         else:
+    #             self.app.after(0, self.update_project_dropdown, ["No Projects Assigned..."])
+    #     except requests.exceptions.RequestException as e:
+    #         print("Error fetching projects:", e)
+    #         self.app.after(0, self.update_project_dropdown, ["No Projects Assigned..."])
     def fetch_projects(self):
         """Fetch project names from API and update dropdown safely."""
         try:
-            response = requests.get("http://localhost:8080/api/project/projects")  
+            response = requests.get("https://o9bc4pbt8b.execute-api.ap-south-1.amazonaws.com/development/projects")  
             if response.status_code == 200:
                 projects = response.json()
-                project_names = list(set(project["name"] for project in projects))  # ✅ Remove duplicates
-
-                # ✅ Use `after()` to update the UI safely
+                
+                # Handle both single project object and array of projects
+                if isinstance(projects, list):
+                    # If response is a list of projects
+                    project_names = [project.get("name", "Unnamed Project") for project in projects]
+                elif isinstance(projects, dict):
+                    # If response is a single project object
+                    project_names = [projects.get("name", "Unnamed Project")]
+                else:
+                    project_names = ["No Projects Assigned..."]
+                
+                # Remove duplicates and filter out None values
+                project_names = list(set(filter(None, project_names)))
+                
+                # If no valid project names were found
+                if not project_names:
+                    project_names = ["No Projects Assigned..."]
+                    
+                # Use `after()` to update the UI safely from a non-main thread
                 self.app.after(0, self.update_project_dropdown, project_names)
             else:
+                print(f"Error fetching projects: {response.status_code}")
                 self.app.after(0, self.update_project_dropdown, ["No Projects Assigned..."])
         except requests.exceptions.RequestException as e:
             print("Error fetching projects:", e)
@@ -212,7 +244,6 @@ class TimerMixin:
         """Update the project dropdown in the main thread."""
         self.project_option_menu.configure(values=project_names)
         self.project_option_menu.set(project_names[0] if project_names else "No Projects Assigned...")
-
 
     def toggle_timer(self):
         """Toggle between start and stop."""
@@ -263,24 +294,24 @@ class TimerMixin:
             self.timer_display.after(1000, self.update_timer_display)
 
     def capture_random_screenshots(self):
-        """Capture 5 random screenshots while the timer is running."""
-        if not self.timer_running:
-            return  # Exit if timer is stopped before it starts
-
-        intervals = sorted(random.sample(range(1, 600), 5))  # ✅ Generate 5 random times within 10 minutes
-
-        for interval in intervals:
-            if not self.timer_running:
-                break  # Stop immediately if timer is off
-
-            #print(f"Waiting for {interval} seconds to capture a screenshot...")  # Debugging
-            time.sleep(interval)  # ✅ Wait until this interval
-
-            if not self.timer_running:
-                break  # Stop immediately if timer is off
-
-            print(f"Capturing random screenshot at {interval} seconds")  # Debugging
-            self.uploader.capture_and_upload_screenshot(action="random")
+        while self.timer_running:
+            start_time = time.time()
+            intervals = sorted(random.sample(range(1, 600), 2))
+            # print(f"Selected screenshot times: {intervals}")  # Debugging
+            index = 0
+            
+            while index < len(intervals) and self.timer_running:
+                elapsed_time = time.time() - start_time
+                
+                if elapsed_time >= intervals[index]:
+                    # print(f"Capturing random screenshot at {elapsed_time:.2f} seconds")  # Debugging
+                    self.uploader.capture_and_upload_screenshot(action="random")
+                    index += 1
+                
+                time.sleep(1)  # Prevent CPU overuse
+            
+            # Ensure a 10-minute cycle before new screenshots are scheduled
+            time.sleep(600 - (time.time() - start_time))
 
 
     @staticmethod

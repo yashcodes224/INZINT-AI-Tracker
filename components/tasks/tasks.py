@@ -4,11 +4,12 @@ from components.timer.timer import TimerMixin
 from components.tasks.task_style import LIGHT_THEME, DARK_THEME  # Import both themes
 
 class TasksSection(ctk.CTkFrame, TimerMixin):
-    def __init__(self, parent, app):
+    def __init__(self, parent, app, token):
         ctk.CTkFrame.__init__(self, parent)
         TimerMixin.__init__(self, app, user_name=app.user_name)
 
         self.app = app  # Store app reference
+        self.token = token
 
         # Apply the correct theme dynamically
         self.apply_theme()
@@ -167,7 +168,7 @@ class TasksSection(ctk.CTkFrame, TimerMixin):
     def show_task_form(self):
         """Show the Task Form in the left section."""
         self.clear_left_frame()
-        TaskForm(self.left_frame, self.app, self.show_tasks_view).pack(fill="both", expand=True)
+        TaskForm(self.left_frame, self.app, self.show_tasks_view, self.token).pack(fill="both", expand=True)
 
     def clear_left_frame(self):
         """Clear all widgets in the left frame."""
