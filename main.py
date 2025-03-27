@@ -7,6 +7,7 @@ from utils.icon import resource_path
 from dotenv import load_dotenv
 import os
 import sys
+import json
 
 # Determine the correct path for the .env file
 if getattr(sys, 'frozen', False):  # If running as a bundled .exe
@@ -22,6 +23,9 @@ API_LOGIN_URL = "https://o9bc4pbt8b.execute-api.ap-south-1.amazonaws.com/develop
 API_SIGNUP_URL = "https://o9bc4pbt8b.execute-api.ap-south-1.amazonaws.com/development/signup"
 API_PROFILE_URL = "https://o9bc4pbt8b.execute-api.ap-south-1.amazonaws.com/development/profile"  # Endpoint to fetch user details after login
 
+# Define a secure hidden directory
+SESSION_DIR = os.path.join(os.path.expanduser("~"), ".itrack")
+SESSION_FILE = os.path.join(SESSION_DIR, "session.json")
 
 class LoginPage(ctk.CTk):
     def __init__(self):
@@ -37,14 +41,57 @@ class LoginPage(ctk.CTk):
         ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
 
-        # UI Components
-        self.create_logo_section()
-        self.create_login_form()
-
         # Store authentication details in memory
         self.auth_token = None
         self.user_role = None
         self.user_name = None
+
+        # Set the window close protocol to use safe exit
+        self.protocol("WM_DELETE_WINDOW", self._safe_exit)
+
+        # Check if a session already exists
+        if self.load_session():
+            self.open_task_tracker()  # Skip login and go directly to tracker
+        else:
+            self.create_logo_section()
+            self.create_login_form()
+
+    def _safe_exit(self):
+        """Safely exit the application to avoid tkinter errors."""
+        try:
+            # Disable all event handlers
+            self.unbind_all("<Button>")
+            self.unbind_all("<Key>")
+            
+            # Destroy all top-level windows
+            for widget in self.winfo_children():
+                try:
+                    widget.destroy()
+                except Exception:
+                    pass
+                    
+            # Exit the application
+            self.quit()
+            self.destroy()
+            
+            # Force exit as last resort
+            import os, sys
+            os._exit(0)  # Force exit without cleanup
+        except Exception as e:
+            print(f"Error during exit: {e}")
+            os._exit(0)  # Force exit as fallback
+
+    def load_session(self):
+        """Load session details from the hidden directory."""
+        try:
+            with open(SESSION_FILE, "r") as file:
+                session_data = json.load(file)
+                self.auth_token = session_data["token"]
+                self.user_name = session_data["user_name"]
+                self.user_role = session_data["user_role"]
+                return True
+        except (FileNotFoundError, json.JSONDecodeError):
+            return False  # No session found, proceed with login
 
     def create_logo_section(self):
         """Create the logo and welcome text."""
@@ -125,7 +172,7 @@ class LoginPage(ctk.CTk):
             messagebox.showerror("Error", f"Failed to connect to server: {e}")
 
     def fetch_user_profile(self):
-        """Fetch user details from backend using the token."""
+        """Fetch user details from backend using the token and store session."""
         headers = {"Authorization": f"Bearer {self.auth_token}"}
 
         try:
@@ -134,7 +181,10 @@ class LoginPage(ctk.CTk):
             if response.status_code == 200:
                 user_data = response.json()
                 self.user_name = user_data.get("name")
-                self.user_role = user_data.get("role", "User")  # Default to 'User' if not provided
+                self.user_role = user_data.get("role", "User")
+
+                # Save session locally
+                self.save_session()
 
                 messagebox.showinfo("Success", f"Welcome {self.user_name}! You are logged in as {self.user_role}.")
                 self.open_task_tracker()
@@ -145,6 +195,20 @@ class LoginPage(ctk.CTk):
         except requests.RequestException as e:
             messagebox.showerror("Error", f"Failed to connect to server: {e}")
 
+    def save_session(self):
+        """Save session details to a hidden directory."""
+        if not os.path.exists(SESSION_DIR):
+            os.makedirs(SESSION_DIR, exist_ok=True)  # Create directory if it doesn't exist
+
+        session_data = {
+            "token": self.auth_token,
+            "user_name": self.user_name,
+            "user_role": self.user_role
+        }
+    
+        with open(SESSION_FILE, "w") as file:
+            json.dump(session_data, file)
+
     def open_signup_page(self):
         """Open the signup page."""
         self.destroy()
@@ -154,7 +218,11 @@ class LoginPage(ctk.CTk):
         """Open the task tracker page using in-memory token and role."""
         self.destroy()
         TrackerApp(token=self.auth_token, role=self.user_role, user_name=self.user_name).mainloop()
-
+        # Set the proper close protocol for the tracker app
+        TrackerApp.protocol("WM_DELETE_WINDOW", TrackerApp._safe_exit)
+        
+        self.destroy()  # Destroy login window
+        TrackerApp.mainloop()  # Start tracker app's event loop
 
 class SignUpPage(ctk.CTk):
     def __init__(self):

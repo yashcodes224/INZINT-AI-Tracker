@@ -7,6 +7,11 @@ from components.sidebar.sidebar import Sidebar
 from components.timer.timer_style import LIGHT_THEME, DARK_THEME 
 import os 
 from utils.icon import resource_path
+from tkinter import TclError, messagebox
+
+# Define the same secure hidden directory
+SESSION_DIR = os.path.join(os.path.expanduser("~"), ".itrack")
+SESSION_FILE = os.path.join(SESSION_DIR, "session.json")
 
 class TrackerApp(ctk.CTk, TimerMixin):
     def __init__(self, token, role, user_name):
@@ -100,9 +105,56 @@ class TrackerApp(ctk.CTk, TimerMixin):
         settings_page.pack(fill="both", expand=True)
 
     def sign_out(self):
-        """Close the application."""
-        self.destroy()
+        """Handle user logout and clear saved session."""
+        # Stop any active timers first
+        if hasattr(self, 'stop_timer') and callable(self.stop_timer):
+            self.stop_timer()  # Stop timer if running
+        
+        # Remove session file to ensure login appears on next start
+        if os.path.exists(SESSION_FILE):
+            try:
+                os.remove(SESSION_FILE)  # Delete saved session
+            except Exception as e:
+                print(f"Error removing session file: {e}")
+        
+        # Show message
+        messagebox.showinfo("Logged Out", "You have been logged out successfully.")
+        
+        # Schedule the application exit after the messagebox is closed
+        # This helps avoid race conditions by giving time for message box to close
+        self.after(200, self._safe_exit)
+
+    def _safe_exit(self):
+        """Safely exit the application to avoid tkinter errors."""
+        try:
+            # Disable all event handlers
+            self.unbind_all("<Button>")
+            self.unbind_all("<Key>")
+            
+            # Destroy all top-level windows
+            for widget in self.winfo_children():
+                try:
+                    widget.destroy()
+                except Exception:
+                    pass
+                    
+            # Exit the application
+            self.quit()
+            self.destroy()
+            
+            # Force exit as last resort
+            import os, sys
+            os._exit(0)  # Force exit without cleanup
+        except Exception as e:
+            print(f"Error during exit: {e}")
+            os._exit(0)  # Force exit as fallback
 
 if __name__ == "__main__":
-    app = TrackerApp(token="your_token_here", role="your_role_here", user_name="your_name_here")
-    app.mainloop()
+    try:
+        app = TrackerApp(token="your_token_here", role="your_role_here", user_name="your_name_here")
+        app.protocol("WM_DELETE_WINDOW", lambda: app._safe_exit())  # Properly handle window closing
+        app.mainloop()
+    except TclError as e:
+        # Log the error for debugging
+        print(f"TclError: {e}")
+        pass
